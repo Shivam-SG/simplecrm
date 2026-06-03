@@ -140,11 +140,16 @@ export default function UsersPage() {
     return (audit?.today ?? []).filter((event) => event.userId === selectedUserId)
   }, [audit, selectedUserId])
 
-  async function createUser(formData: FormData) {
-    const name = String(formData.get("name") ?? "").trim()
-    const mobile = String(formData.get("mobile") ?? "").trim()
-    const password = String(formData.get("password") ?? "").trim()
-    const role = String(formData.get("role") ?? "user") as "admin" | "user"
+  async function createUser(payload: {
+    name: string
+    mobile: string
+    password: string
+    role: "admin" | "user"
+  }) {
+    const name = payload.name.trim()
+    const mobile = payload.mobile.trim()
+    const password = payload.password.trim()
+    const role = payload.role
 
     if (!name || !mobile || !password) {
       toast.error("All fields are required")
