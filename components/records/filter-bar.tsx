@@ -24,7 +24,24 @@ import { cn } from "@/lib/utils"
 import type { SchemaField } from "@/lib/schema-detector"
 import type { FilterMap, FilterValue } from "@/lib/filter-builder"
 
-type FiltersData = Record<string, { distinct?: string[]; min?: number; max?: number }>
+type FiltersData = Record<
+  string,
+  { distinct?: string[]; min?: number; max?: number }
+>
+
+const HIDDEN_FILTER_LABELS = new Set([
+  "Title",
+  "Total Score",
+  "Reviews Count",
+  "Street",
+  "City",
+  "State",
+  "Website",
+  "Phone",
+  "Categories",
+  "URL",
+  "Category Name",
+])
 
 export function FilterBar({
   schema,
@@ -65,20 +82,22 @@ export function FilterBar({
     onSearchChange("")
   }
 
-  const visibleFields = schema.filter((f) => f.visible && f.type !== "json")
+  const visibleFields = schema.filter(
+    (f) => f.visible && f.type !== "json" && !HIDDEN_FILTER_LABELS.has(f.label)
+  )
   const activeChips = buildChips(filters, status, scoreMin, schema)
   const hasActive = activeChips.length > 0 || search.length > 0
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="size-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+    <div className="min-w-0 space-y-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className="relative min-w-0 flex-[1_1_260px] sm:max-w-md">
+          <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search..."
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-8 h-9"
+            className="h-9 pl-8"
           />
         </div>
 
@@ -108,7 +127,7 @@ export function FilterBar({
       </div>
 
       {activeChips.length > 0 && (
-        <div className="flex items-center gap-1 flex-wrap">
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
           {activeChips.map((c) => (
             <Badge key={c.id} variant="secondary" className="gap-1">
               {c.label}
@@ -128,7 +147,8 @@ export function FilterBar({
     sMin: number,
     sch: SchemaField[]
   ): { id: string; label: React.ReactNode; onRemove: () => void }[] {
-    const out: { id: string; label: React.ReactNode; onRemove: () => void }[] = []
+    const out: { id: string; label: React.ReactNode; onRemove: () => void }[] =
+      []
     if (statuses.length > 0) {
       out.push({
         id: "status",
@@ -146,6 +166,7 @@ export function FilterBar({
     for (const [key, v] of Object.entries(fs)) {
       const f = sch.find((x) => x.key === key)
       if (!f) continue
+      if (HIDDEN_FILTER_LABELS.has(f.label)) continue
       let label = ""
       if (v.type === "text") label = `${f.label}: "${v.value}"`
       else if (v.type === "range")
@@ -180,7 +201,7 @@ function StatusFilter({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9">
+        <Button variant="outline" size="sm" className="h-9 shrink-0">
           <FilterIcon className="size-3" />
           Status
           {value.length > 0 && (
@@ -195,17 +216,14 @@ function StatusFilter({
           {options.map((s) => (
             <label
               key={s}
-              className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent cursor-pointer text-sm"
+              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent"
             >
               <Checkbox
                 checked={value.includes(s)}
                 onCheckedChange={() => toggle(s)}
               />
               <span
-                className={cn(
-                  "px-1.5 py-0.5 rounded text-xs",
-                  statusClass(s)
-                )}
+                className={cn("rounded px-1.5 py-0.5 text-xs", statusClass(s))}
               >
                 {s}
               </span>
@@ -225,17 +243,16 @@ function ScoreFilter({
   onChange: (v: number) => void
 }) {
   return (
-    <Select
-      value={String(value)}
-      onValueChange={(v) => onChange(Number(v))}
-    >
-      <SelectTrigger className="h-9 w-32">
+    <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
+      <SelectTrigger className="h-9 w-32 shrink-0">
         <SelectValue placeholder="Score ≥" />
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="0">Any score</SelectItem>
         {[1, 2, 3, 4, 5].map((n) => (
-          <SelectItem key={n} value={String(n)}>≥ {n} stars</SelectItem>
+          <SelectItem key={n} value={String(n)}>
+            ≥ {n} stars
+          </SelectItem>
         ))}
       </SelectContent>
     </Select>
@@ -304,14 +321,18 @@ function FieldFilter({
     return (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <FilterButton label={field.label} active={!!value && selected.length > 0} count={selected.length} />
+          <FilterButton
+            label={field.label}
+            active={!!value && selected.length > 0}
+            count={selected.length}
+          />
         </PopoverTrigger>
-        <PopoverContent className="w-56 max-h-72 overflow-auto" align="start">
+        <PopoverContent className="max-h-72 w-56 overflow-auto" align="start">
           <div className="space-y-1">
             {distinct.map((opt) => (
               <label
                 key={opt}
-                className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent cursor-pointer text-sm"
+                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent"
               >
                 <Checkbox
                   checked={selected.includes(opt)}
@@ -332,7 +353,11 @@ function FieldFilter({
     )
   }
 
-  if (field.type === "phone" || field.type === "url" || field.type === "email") {
+  if (
+    field.type === "phone" ||
+    field.type === "url" ||
+    field.type === "email"
+  ) {
     return (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
@@ -348,7 +373,9 @@ function FieldFilter({
                 else onChange({ type: "exists", value: v as "yes" | "no" })
               }}
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="any">Any</SelectItem>
                 <SelectItem value="yes">Has value</SelectItem>
@@ -375,7 +402,9 @@ function FieldFilter({
               else onChange({ type: "bool", value: v as "yes" | "no" })
             }}
           >
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="any">Any</SelectItem>
               <SelectItem value="yes">Yes</SelectItem>
@@ -403,9 +432,9 @@ function FilterButton({
     <Button
       variant={active ? "default" : "outline"}
       size="sm"
-      className="h-9"
+      className="h-9 max-w-[180px] shrink-0"
     >
-      {label}
+      <span className="truncate">{label}</span>
       {active && count !== undefined && count > 0 && (
         <Badge variant="secondary" className="ml-1 h-5 px-1.5">
           {count}

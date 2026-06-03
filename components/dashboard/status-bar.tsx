@@ -8,8 +8,9 @@ const COLOR_FOR_STATUS: Record<string, string> = {
   contacted: "bg-blue-500",
   interested: "bg-amber-500",
   not_interested: "bg-red-500",
-  converted: "bg-green-500",
-  junk: "bg-zinc-700",
+  call_not_picked: "bg-orange-500",
+  not_answered: "bg-rose-500",
+  call_back: "bg-emerald-500",
 }
 
 function colorFor(status: string): string {

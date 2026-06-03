@@ -2,8 +2,9 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import mongoose from "mongoose"
 import { connectDB } from "@/lib/db"
-import { Page } from "@/lib/models/page"
+import { Page, normalizeStatusOptions } from "@/lib/models/page"
 import { requireSession, UnauthorizedError } from "@/lib/session"
+import { forbidden, isAdmin } from "@/lib/permissions"
 
 const fieldSchema = z.object({
   key: z.string().min(1),
@@ -45,6 +46,19 @@ async function loadOwnedPage(id: string, uid: string) {
   })
 }
 
+async function loadReadablePage(
+  id: string,
+  session: Awaited<ReturnType<typeof requireSession>>
+) {
+  if (!mongoose.Types.ObjectId.isValid(id)) return null
+  await connectDB()
+  const query: Record<string, unknown> = {
+    _id: new mongoose.Types.ObjectId(id),
+  }
+  if (isAdmin(session)) query.userId = new mongoose.Types.ObjectId(session.uid)
+  return await Page.findOne(query)
+}
+
 export async function GET(
   _req: Request,
   ctx: { params: Promise<{ pageId: string }> }
@@ -53,8 +67,16 @@ export async function GET(
     const session = await requireSession()
     const { pageId } = await ctx.params
     if (!mongoose.Types.ObjectId.isValid(pageId)) return badId()
-    const page = await loadOwnedPage(pageId, session.uid)
+    const page = await loadReadablePage(pageId, session)
     if (!page) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    const normalizedStatusOptions = normalizeStatusOptions(page.statusOptions)
+    if (
+      normalizedStatusOptions.length !== page.statusOptions.length ||
+      normalizedStatusOptions.some((status, index) => status !== page.statusOptions[index])
+    ) {
+      page.statusOptions = normalizedStatusOptions
+      await page.save()
+    }
     return NextResponse.json({ page })
   } catch (err) {
     if (err instanceof UnauthorizedError) {
@@ -85,6 +107,9 @@ export async function PATCH(
     const { schema, ...rest } = parsed.data
     Object.assign(page, rest)
     if (schema !== undefined) page.set("schema", schema)
+    if (rest.statusOptions !== undefined) {
+      page.statusOptions = normalizeStatusOptions(rest.statusOptions)
+    }
     await page.save()
     return NextResponse.json({ page })
   } catch (err) {
@@ -101,6 +126,7 @@ export async function DELETE(
 ) {
   try {
     const session = await requireSession()
+    if (!isAdmin(session)) return forbidden()
     const { pageId } = await ctx.params
     if (!mongoose.Types.ObjectId.isValid(pageId)) return badId()
 

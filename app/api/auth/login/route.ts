@@ -4,9 +4,11 @@ import bcrypt from "bcryptjs"
 import { connectDB } from "@/lib/db"
 import { User } from "@/lib/models/user"
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, signSession } from "@/lib/auth"
+import { normalizeMobile } from "@/lib/permissions"
 
 const bodySchema = z.object({
-  username: z.string().min(1),
+  mobile: z.string().min(1).optional(),
+  username: z.string().min(1).optional(),
   password: z.string().min(1),
 })
 
@@ -18,7 +20,13 @@ export async function POST(req: Request) {
   }
 
   await connectDB()
-  const user = await User.findOne({ username: parsed.data.username })
+  const rawIdentifier = parsed.data.mobile ?? parsed.data.username
+  const mobile = rawIdentifier ? normalizeMobile(rawIdentifier) : undefined
+  const user = await User.findOne(
+    rawIdentifier
+      ? { $or: [{ mobile }, { username: rawIdentifier }] }
+      : { username: parsed.data.username }
+  )
   if (!user) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
   }
@@ -31,9 +39,14 @@ export async function POST(req: Request) {
   const token = await signSession({
     uid: user._id.toString(),
     username: user.username,
+    mobile: user.mobile ?? undefined,
+    role: user.role ?? "admin",
   })
 
-  const res = NextResponse.json({ ok: true, user: { username: user.username } })
+  const res = NextResponse.json({
+    ok: true,
+    user: { username: user.username, mobile: user.mobile, role: user.role },
+  })
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

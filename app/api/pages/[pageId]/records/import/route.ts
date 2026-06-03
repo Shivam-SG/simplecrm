@@ -5,7 +5,12 @@ import { connectDB } from "@/lib/db"
 import { Page } from "@/lib/models/page"
 import { RecordModel } from "@/lib/models/record"
 import { requireSession, UnauthorizedError } from "@/lib/session"
-import { flattenForStorage, type FieldType, type SchemaField } from "@/lib/schema-detector"
+import { forbidden, isAdmin } from "@/lib/permissions"
+import {
+  flattenForStorage,
+  type FieldType,
+  type SchemaField,
+} from "@/lib/schema-detector"
 import { normalizeByType } from "@/lib/dedup"
 
 const fieldSchema = z.object({
@@ -41,6 +46,7 @@ export async function POST(
 ) {
   try {
     const session = await requireSession()
+    if (!isAdmin(session)) return forbidden()
     const { pageId } = await ctx.params
     if (!mongoose.Types.ObjectId.isValid(pageId)) {
       return NextResponse.json({ error: "Invalid id" }, { status: 400 })
@@ -112,7 +118,10 @@ export async function POST(
       }
 
       const toInsert: Record<string, unknown>[] = []
-      const toUpdate: { id: mongoose.Types.ObjectId; data: Record<string, unknown> }[] = []
+      const toUpdate: {
+        id: mongoose.Types.ObjectId
+        data: Record<string, unknown>
+      }[] = []
       const seenInBatch = new Set<string>()
 
       for (const r of incoming) {

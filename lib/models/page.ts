@@ -5,9 +5,46 @@ export const DEFAULT_STATUS_OPTIONS = [
   "contacted",
   "interested",
   "not_interested",
+  "call_not_picked",
+  "not_answered",
+  "call_back",
+]
+
+const LEGACY_STATUS_OPTIONS = [
+  "new",
+  "contacted",
+  "interested",
+  "not_interested",
   "converted",
   "junk",
 ]
+
+const STATUS_REMAP: Record<string, string> = {
+  converted: "call_not_picked",
+  junk: "not_answered",
+}
+
+export function normalizeStatusOptions(statusOptions?: string[] | null) {
+  const cleaned = (statusOptions ?? [])
+    .map((status) => status.trim())
+    .filter(Boolean)
+
+  if (cleaned.length === 0) return [...DEFAULT_STATUS_OPTIONS]
+
+  const isLegacyDefault =
+    cleaned.length === LEGACY_STATUS_OPTIONS.length &&
+    LEGACY_STATUS_OPTIONS.every((status) => cleaned.includes(status))
+
+  if (isLegacyDefault) return [...DEFAULT_STATUS_OPTIONS]
+
+  const normalized: string[] = []
+  for (const status of cleaned) {
+    const nextStatus = STATUS_REMAP[status] ?? status
+    if (!normalized.includes(nextStatus)) normalized.push(nextStatus)
+  }
+
+  return normalized
+}
 
 const schemaFieldSchema = new Schema(
   {

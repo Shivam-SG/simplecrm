@@ -18,29 +18,39 @@ export async function GET(
       return NextResponse.json({ error: "Invalid id" }, { status: 400 })
     }
     await connectDB()
-    const userId = new mongoose.Types.ObjectId(session.uid)
-    const page = await Page.findOne({
+    const pageQuery: Record<string, unknown> = {
       _id: new mongoose.Types.ObjectId(pageId),
-      userId,
-    })
+    }
+    if (session.role === "admin") {
+      pageQuery.userId = new mongoose.Types.ObjectId(session.uid)
+    }
+    const page = await Page.findOne(pageQuery)
     if (!page) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
     const url = new URL(req.url)
     const search = url.searchParams.get("search") ?? ""
-    const pageNum = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10) || 1)
+    const pageNum = Math.max(
+      1,
+      parseInt(url.searchParams.get("page") ?? "1", 10) || 1
+    )
     const limit = Math.min(
       500,
       Math.max(1, parseInt(url.searchParams.get("limit") ?? "50", 10) || 50)
     )
     const sort = url.searchParams.get("sort") || ""
-    const sortDir = (url.searchParams.get("sortDir") || "asc") === "desc" ? -1 : 1
+    const sortDir =
+      (url.searchParams.get("sortDir") || "asc") === "desc" ? -1 : 1
     const filters = parseFilters(url.searchParams.get("filters"))
 
     const status = url.searchParams.getAll("status")
     const scoreMin = parseInt(url.searchParams.get("scoreMin") ?? "0", 10) || 0
     const starredParam = url.searchParams.get("starred")
     const starred =
-      starredParam === "true" ? true : starredParam === "false" ? false : undefined
+      starredParam === "true"
+        ? true
+        : starredParam === "false"
+          ? false
+          : undefined
 
     const query = buildMongoQuery(
       page.schema as SchemaField[],
@@ -49,6 +59,7 @@ export async function GET(
       { titleField: page.titleField, query: search }
     )
     query.pageId = page._id
+    query.userId = page.userId
 
     let mongoSort: Record<string, 1 | -1> = { _id: -1 }
     if (sort === "__system__status") mongoSort = { status: sortDir }

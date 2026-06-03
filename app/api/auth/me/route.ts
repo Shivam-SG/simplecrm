@@ -10,5 +10,11 @@ export async function GET() {
   const session = await verifySession(token)
   if (!session) return NextResponse.json({ user: null }, { status: 401 })
 
-  return NextResponse.json({ user: { username: session.username } })
+  return NextResponse.json({
+    user: {
+      username: session.username,
+      mobile: session.mobile,
+      role: session.role,
+    },
+  })
 }

@@ -2,9 +2,16 @@
 
 import { use, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Star, Upload, ArrowLeft, Settings2, SlidersHorizontal } from "lucide-react"
+import {
+  Star,
+  Upload,
+  ArrowLeft,
+  Settings2,
+  SlidersHorizontal,
+} from "lucide-react"
 import { toast } from "sonner"
 import { mutate as globalMutate } from "swr"
+import useSWR from "swr"
 import Link from "next/link"
 import { AppShell } from "@/components/layout/app-shell"
 import { Button } from "@/components/ui/button"
@@ -25,6 +32,9 @@ import { PageSettingsDialog } from "@/components/records/page-settings"
 import type { FilterMap } from "@/lib/filter-builder"
 import type { SchemaField } from "@/lib/schema-detector"
 
+type CurrentUser = { role: "admin" | "user"; username: string; mobile?: string }
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
 export default function PageView({
   params,
 }: {
@@ -33,7 +43,9 @@ export default function PageView({
   const { pageId } = use(params)
   const router = useRouter()
   const { data, isLoading, error, mutate: mutatePage } = usePage(pageId)
+  const { data: me } = useSWR<{ user: CurrentUser }>("/api/auth/me", fetcher)
   const page = data?.page
+  const canManage = me?.user?.role === "admin"
 
   useEffect(() => {
     if (error) {
@@ -59,8 +71,8 @@ export default function PageView({
         </div>
       ) : (
         <>
-          <PageHeader page={page} onMutate={mutatePage} />
-          <RecordsSection page={page} />
+          <PageHeader page={page} onMutate={mutatePage} canManage={canManage} />
+          <RecordsSection page={page} canManage={canManage} />
         </>
       )}
     </AppShell>
@@ -77,10 +89,11 @@ function ImportButton({
   onComplete: () => void
 }) {
   const [open, setOpen] = useState(false)
+
   return (
     <>
       <Button onClick={() => setOpen(true)}>
-        <Upload className="size-4" /> Import JSON
+        <Upload className="size-4" /> Import Data
       </Button>
       <ImportModal
         open={open}
@@ -96,9 +109,11 @@ function ImportButton({
 function PageHeader({
   page,
   onMutate,
+  canManage,
 }: {
   page: NonNullable<ReturnType<typeof usePage>["data"]>["page"]
   onMutate: () => void
+  canManage: boolean
 }) {
   const [editingName, setEditingName] = useState(false)
   const [name, setName] = useState(page.name)
@@ -109,7 +124,9 @@ function PageHeader({
     if (editingName) inputRef.current?.focus()
   }, [editingName])
 
-  async function patch(updates: Partial<{ name: string; icon: string; starred: boolean }>) {
+  async function patch(
+    updates: Partial<{ name: string; icon: string; starred: boolean }>
+  ) {
     const res = await fetch(`/api/pages/${page._id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -144,15 +161,19 @@ function PageHeader({
   }
 
   return (
-    <div className="flex items-start justify-between gap-3 mb-6">
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        <input
-          aria-label="Page icon"
-          value={icon}
-          onChange={(e) => commitIcon(e.target.value)}
-          className="text-3xl bg-transparent w-12 text-center outline-none rounded-md hover:bg-accent focus:bg-accent"
-        />
-        {editingName ? (
+    <div className="mb-6 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        {canManage ? (
+          <input
+            aria-label="Page icon"
+            value={icon}
+            onChange={(e) => commitIcon(e.target.value)}
+            className="w-12 rounded-md bg-transparent text-center text-3xl outline-none hover:bg-accent focus:bg-accent"
+          />
+        ) : (
+          <span className="w-12 text-center text-3xl">{icon}</span>
+        )}
+        {canManage && editingName ? (
           <input
             ref={inputRef}
             value={name}
@@ -165,42 +186,51 @@ function PageHeader({
                 setEditingName(false)
               }
             }}
-            className="text-2xl font-semibold bg-transparent outline-none border-b border-border flex-1 min-w-0"
+            className="min-w-0 flex-1 border-b border-border bg-transparent text-2xl font-semibold outline-none"
           />
         ) : (
           <h1
-            className="text-2xl font-semibold truncate cursor-text rounded px-1 -mx-1 hover:bg-accent/50"
-            onClick={() => setEditingName(true)}
+            className={cn(
+              "truncate rounded px-1 text-2xl font-semibold",
+              canManage && "-mx-1 cursor-text hover:bg-accent/50"
+            )}
+            onClick={() => canManage && setEditingName(true)}
           >
             {page.name}
           </h1>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => patch({ starred: !page.starred })}
-          aria-label={page.starred ? "Unstar" : "Star"}
-        >
-          <Star
-            className={cn(
-              "size-5",
-              page.starred && "fill-yellow-400 text-yellow-400"
-            )}
-          />
-        </Button>
+        {canManage && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => patch({ starred: !page.starred })}
+            aria-label={page.starred ? "Unstar" : "Star"}
+          >
+            <Star
+              className={cn(
+                "size-5",
+                page.starred && "fill-yellow-400 text-yellow-400"
+              )}
+            />
+          </Button>
+        )}
       </div>
-      <div className="flex items-center gap-2">
-        {(page.schema?.length ?? 0) > 0 && (
+      <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+        {canManage && (page.schema?.length ?? 0) > 0 && (
           <>
             <PageSettingsButton page={page} onSaved={onMutate} />
             <ColumnSettingsButton page={page} onSaved={onMutate} />
           </>
         )}
-        <ImportButton
-          pageId={page._id}
-          hasExistingRecords={(page.schema?.length ?? 0) > 0}
-          onComplete={onMutate}
-        />
+        {canManage && (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <ImportButton
+              pageId={page._id}
+              hasExistingRecords={(page.schema?.length ?? 0) > 0}
+              onComplete={onMutate}
+            />
+          </div>
+        )}
       </div>
     </div>
   )
@@ -216,7 +246,12 @@ function ColumnSettingsButton({
   const [open, setOpen] = useState(false)
   return (
     <>
-      <Button variant="outline" size="icon" onClick={() => setOpen(true)} aria-label="Column settings">
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => setOpen(true)}
+        aria-label="Column settings"
+      >
         <Settings2 className="size-4" />
       </Button>
       <ColumnSettings
@@ -243,7 +278,12 @@ function PageSettingsButton({
   const [open, setOpen] = useState(false)
   return (
     <>
-      <Button variant="outline" size="icon" onClick={() => setOpen(true)} aria-label="Page settings">
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => setOpen(true)}
+        aria-label="Page settings"
+      >
         <SlidersHorizontal className="size-4" />
       </Button>
       <PageSettingsDialog
@@ -259,8 +299,10 @@ function PageSettingsButton({
 
 function RecordsSection({
   page,
+  canManage,
 }: {
   page: NonNullable<ReturnType<typeof usePage>["data"]>["page"]
+  canManage: boolean
 }) {
   const [search, setSearch] = useState("")
   const debouncedSearch = useDebounce(search, 300)
@@ -310,7 +352,9 @@ function RecordsSection({
       (cur) =>
         cur && {
           ...cur,
-          records: cur.records.map((r) => (r._id === id ? { ...r, ...update } : r)),
+          records: cur.records.map((r) =>
+            r._id === id ? { ...r, ...update } : r
+          ),
         },
       { revalidate: false }
     )
@@ -340,7 +384,9 @@ function RecordsSection({
       (cur) =>
         cur && {
           ...cur,
-          records: cur.records.map((r) => (r._id === id ? { ...r, ...update } : r)),
+          records: cur.records.map((r) =>
+            r._id === id ? { ...r, ...update } : r
+          ),
         },
       { revalidate: false }
     )
@@ -367,19 +413,28 @@ function RecordsSection({
   const activeRecordIndex = activeRecordId
     ? records.findIndex((r) => r._id === activeRecordId)
     : -1
-  const activeRecord = activeRecordIndex >= 0 ? records[activeRecordIndex] : null
+  const activeRecord =
+    activeRecordIndex >= 0 ? records[activeRecordIndex] : null
 
   const allOnPageSelected =
     records.length > 0 && records.every((r) => selectedIds.has(r._id))
 
-  const noRecords = !isLoading && records.length === 0 && Object.keys(filters).length === 0 && status.length === 0 && scoreMin === 0 && !debouncedSearch
+  const noRecords =
+    !isLoading &&
+    records.length === 0 &&
+    Object.keys(filters).length === 0 &&
+    status.length === 0 &&
+    scoreMin === 0 &&
+    !debouncedSearch
 
   if (schema.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed rounded-lg">
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-20 text-center">
         <h2 className="font-medium">No data yet</h2>
-        <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-          Click <strong>Import JSON</strong> above to add data. Schema is auto-detected.
+        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+          {canManage
+            ? "Click Import Data above to add data. Schema is auto-detected."
+            : "No data is available yet."}
         </p>
       </div>
     )
@@ -387,10 +442,10 @@ function RecordsSection({
 
   if (noRecords) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed rounded-lg">
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-20 text-center">
         <h2 className="font-medium">No records yet</h2>
-        <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-          Import a JSON file to populate this page.
+        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+          Import a JSON, CSV, or Excel file to populate this page.
         </p>
       </div>
     )
@@ -407,13 +462,13 @@ function RecordsSection({
     : { type: "ids", ids: Array.from(selectedIds) }
 
   const effectiveSelectedCount = bulkSelectAllMatching
-    ? recordsData?.total ?? selectedIds.size
+    ? (recordsData?.total ?? selectedIds.size)
     : selectedIds.size
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-start gap-2">
-        <div className="flex-1">
+    <div className="min-w-0 space-y-3 overflow-hidden">
+      <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start">
+        <div className="min-w-0 flex-1">
           <FilterBar
             schema={schema}
             filtersData={filtersData?.filters ?? {}}
@@ -428,22 +483,26 @@ function RecordsSection({
             statusOptions={page.statusOptions}
           />
         </div>
-        <ExportButton
-          pageId={page._id}
-          pageName={page.name}
-          schema={schema}
-          query={{
-            search: debouncedSearch,
-            sort: sort?.key ?? "",
-            sortDir: (sort?.dir ?? "asc") as "asc" | "desc",
-            filters: debouncedFilters,
-            status,
-            scoreMin,
-          }}
-        />
+        {canManage && (
+          <div className="flex shrink-0 justify-start xl:justify-end">
+            <ExportButton
+              pageId={page._id}
+              pageName={page.name}
+              schema={schema}
+              query={{
+                search: debouncedSearch,
+                sort: sort?.key ?? "",
+                sortDir: (sort?.dir ?? "asc") as "asc" | "desc",
+                filters: debouncedFilters,
+                status,
+                scoreMin,
+              }}
+            />
+          </div>
+        )}
       </div>
 
-      {effectiveSelectedCount > 0 && (
+      {canManage && effectiveSelectedCount > 0 && (
         <BulkToolbar
           selectedCount={effectiveSelectedCount}
           totalMatching={recordsData?.total ?? 0}
@@ -484,6 +543,7 @@ function RecordsSection({
           }}
           onRowClick={(r: RecordRow) => setActiveRecordId(r._id)}
           onUpdate={updateRecord}
+          canManage={canManage}
         />
       )}
 
@@ -506,8 +566,11 @@ function RecordsSection({
         pageId={page._id}
         onUpdated={patchLocal}
         onDeleted={deleteLocal}
+        canManage={canManage}
         hasPrev={activeRecordIndex > 0}
-        hasNext={activeRecordIndex >= 0 && activeRecordIndex < records.length - 1}
+        hasNext={
+          activeRecordIndex >= 0 && activeRecordIndex < records.length - 1
+        }
         onPrev={() => {
           if (activeRecordIndex > 0)
             setActiveRecordId(records[activeRecordIndex - 1]._id)

@@ -1,7 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ChevronUp, ChevronDown, Trash2, X as XIcon, MapPin } from "lucide-react"
+import {
+  ChevronUp,
+  ChevronDown,
+  Trash2,
+  X as XIcon,
+  MapPin,
+} from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -52,7 +58,10 @@ function findMapsUrl(record: RecordRow, schema: SchemaField[]): string | null {
   for (const f of schema) {
     if (f.type !== "url") continue
     const v = record.data?.[f.key]
-    if (typeof v === "string" && /google\.com\/maps|goo\.gl\/maps|maps\.app\.goo\.gl/.test(v)) {
+    if (
+      typeof v === "string" &&
+      /google\.com\/maps|goo\.gl\/maps|maps\.app\.goo\.gl/.test(v)
+    ) {
       return v
     }
   }
@@ -73,6 +82,7 @@ export function DetailPanel({
   onNext,
   hasPrev,
   hasNext,
+  canManage,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -87,6 +97,7 @@ export function DetailPanel({
   onNext: () => void
   hasPrev: boolean
   hasNext: boolean
+  canManage: boolean
 }) {
   const [tagInput, setTagInput] = useState("")
   const [noteInput, setNoteInput] = useState("")
@@ -124,7 +135,7 @@ export function DetailPanel({
   if (!record) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-xl overflow-y-auto" />
+        <SheetContent className="w-full overflow-y-auto sm:max-w-xl" />
       </Sheet>
     )
   }
@@ -207,9 +218,9 @@ export function DetailPanel({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto p-0">
-        <div className="px-6 pt-6 pb-4 border-b">
-          <div className="flex items-center justify-between mb-3">
+      <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-xl">
+        <div className="border-b px-6 pt-6 pb-4">
+          <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
@@ -231,7 +242,9 @@ export function DetailPanel({
               >
                 <ChevronDown className="size-4" />
               </Button>
-              <span className="text-xs text-muted-foreground ml-1">↑/↓ to navigate</span>
+              <span className="ml-1 text-xs text-muted-foreground">
+                ↑/↓ to navigate
+              </span>
             </div>
             <Button
               variant="ghost"
@@ -244,31 +257,37 @@ export function DetailPanel({
             </Button>
           </div>
 
-          <SheetHeader className="p-0 space-y-0">
+          <SheetHeader className="space-y-0 p-0">
             <div className="flex items-center gap-2">
-              <StarredCell
-                value={record.starred}
-                onChange={(v) => patch({ starred: v })}
-              />
+              {canManage && (
+                <StarredCell
+                  value={record.starred}
+                  onChange={(v) => patch({ starred: v })}
+                />
+              )}
               <SheetTitle className="truncate">{titleValue}</SheetTitle>
             </div>
-            <SheetDescription className="sr-only">Record details</SheetDescription>
-            <div className="flex items-center gap-3 mt-3">
+            <SheetDescription className="sr-only">
+              Record details
+            </SheetDescription>
+            <div className="mt-3 flex items-center gap-3">
               <StatusCell
                 value={record.status}
                 options={statusOptions}
                 onChange={(v) => patch({ status: v })}
               />
-              <ScoreCell
-                value={record.score}
-                onChange={(v) => patch({ score: v })}
-              />
+              {canManage && (
+                <ScoreCell
+                  value={record.score}
+                  onChange={(v) => patch({ score: v })}
+                />
+              )}
               {mapsUrl && (
                 <a
                   href={mapsUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="ml-auto inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border hover:bg-accent"
+                  className="ml-auto inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs hover:bg-accent"
                 >
                   <MapPin className="size-3" /> View on Maps
                 </a>
@@ -277,16 +296,18 @@ export function DetailPanel({
           </SheetHeader>
         </div>
 
-        <div className="px-6 py-4 space-y-5">
+        <div className="space-y-5 px-6 py-4">
           {/* Data */}
           <section>
-            <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+            <h3 className="mb-2 text-xs font-semibold text-muted-foreground uppercase">
               Data
             </h3>
             <div className="space-y-2.5">
               {schema.map((f) => (
-                <div key={f.key} className="grid grid-cols-3 gap-2 items-start">
-                  <div className="text-xs text-muted-foreground pt-1.5">{f.label}</div>
+                <div key={f.key} className="grid grid-cols-3 items-start gap-2">
+                  <div className="pt-1.5 text-xs text-muted-foreground">
+                    {f.label}
+                  </div>
                   <div className="col-span-2 text-sm">
                     <FieldRenderer
                       type={f.type}
@@ -299,93 +320,111 @@ export function DetailPanel({
             </div>
           </section>
 
-          <Separator />
+          {canManage && (
+            <>
+              <Separator />
 
-          {/* Tags */}
-          <section>
-            <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-              Tags
-            </h3>
-            <div className="flex flex-wrap gap-1 mb-2">
-              {record.tags.length === 0 && (
-                <span className="text-xs text-muted-foreground">No tags</span>
-              )}
-              {record.tags.map((t) => (
-                <Badge key={t} variant="secondary" className="gap-1">
-                  {t}
-                  <button onClick={() => removeTag(t)} aria-label="Remove tag">
-                    <XIcon className="size-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-            <form onSubmit={addTag}>
-              <Input
-                placeholder="Add tag (comma-separated, Enter to add)"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") addTag(e)
-                }}
-                className="h-8"
-              />
-            </form>
-          </section>
+              {/* Tags */}
+              <section>
+                <h3 className="mb-2 text-xs font-semibold text-muted-foreground uppercase">
+                  Tags
+                </h3>
+                <div className="mb-2 flex flex-wrap gap-1">
+                  {record.tags.length === 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      No tags
+                    </span>
+                  )}
+                  {record.tags.map((t) => (
+                    <Badge key={t} variant="secondary" className="gap-1">
+                      {t}
+                      <button
+                        onClick={() => removeTag(t)}
+                        aria-label="Remove tag"
+                      >
+                        <XIcon className="size-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+                <form onSubmit={addTag}>
+                  <Input
+                    placeholder="Add tag (comma-separated, Enter to add)"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") addTag(e)
+                    }}
+                    className="h-8"
+                  />
+                </form>
+              </section>
 
-          <Separator />
+              <Separator />
 
-          {/* Notes */}
-          <section>
-            <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-              Notes
-            </h3>
-            <form onSubmit={addNote} className="space-y-2 mb-3">
-              <Textarea
-                placeholder="Add a note..."
-                value={noteInput}
-                onChange={(e) => setNoteInput(e.target.value)}
-                rows={2}
-              />
-              <div className="flex justify-end">
-                <Button type="submit" size="sm" disabled={!noteInput.trim()}>
-                  Add note
+              {/* Notes */}
+              <section>
+                <h3 className="mb-2 text-xs font-semibold text-muted-foreground uppercase">
+                  Notes
+                </h3>
+                <form onSubmit={addNote} className="mb-3 space-y-2">
+                  <Textarea
+                    placeholder="Add a note..."
+                    value={noteInput}
+                    onChange={(e) => setNoteInput(e.target.value)}
+                    rows={2}
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={!noteInput.trim()}
+                    >
+                      Add note
+                    </Button>
+                  </div>
+                </form>
+                <div className="space-y-2">
+                  {record.notes.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      No notes yet.
+                    </p>
+                  )}
+                  {[...record.notes]
+                    .sort(
+                      (a, b) =>
+                        new Date(b.createdAt).getTime() -
+                        new Date(a.createdAt).getTime()
+                    )
+                    .map((n) => (
+                      <div
+                        key={n._id}
+                        className="rounded-md border bg-muted/30 p-2.5"
+                      >
+                        <div className="text-sm whitespace-pre-wrap">
+                          {n.text}
+                        </div>
+                        <div className="mt-1 text-[10px] text-muted-foreground">
+                          {relativeTime(n.createdAt)}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </section>
+
+              <Separator />
+
+              <div className="flex justify-end pb-2">
+                <Button
+                  variant="outline"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <Trash2 className="size-4" /> Delete record
                 </Button>
               </div>
-            </form>
-            <div className="space-y-2">
-              {record.notes.length === 0 && (
-                <p className="text-xs text-muted-foreground">No notes yet.</p>
-              )}
-              {[...record.notes]
-                .sort(
-                  (a, b) =>
-                    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                )
-                .map((n) => (
-                  <div
-                    key={n._id}
-                    className="border rounded-md p-2.5 bg-muted/30"
-                  >
-                    <div className="text-sm whitespace-pre-wrap">{n.text}</div>
-                    <div className="text-[10px] text-muted-foreground mt-1">
-                      {relativeTime(n.createdAt)}
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </section>
-
-          <Separator />
-
-          <div className="flex justify-end pb-2">
-            <Button
-              variant="outline"
-              className="text-destructive hover:text-destructive"
-              onClick={() => setDeleteOpen(true)}
-            >
-              <Trash2 className="size-4" /> Delete record
-            </Button>
-          </div>
+            </>
+          )}
         </div>
 
         <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>

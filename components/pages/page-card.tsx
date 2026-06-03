@@ -46,9 +46,11 @@ function relativeTime(iso: string) {
 export function PageCard({
   page,
   onMutate,
+  canManage,
 }: {
   page: PageSummary
   onMutate: () => void
+  canManage: boolean
 }) {
   const router = useRouter()
   const [renameOpen, setRenameOpen] = useState(false)
@@ -86,58 +88,68 @@ export function PageCard({
     <>
       <Link
         href={`/pages/${page._id}`}
-        className="group rounded-lg border bg-card p-4 hover:border-foreground/30 hover:shadow-sm transition relative block"
+        className="group relative block rounded-lg border bg-card p-4 transition hover:border-foreground/30 hover:shadow-sm"
       >
         <div className="flex items-start gap-3">
-          <div className="text-2xl leading-none mt-0.5">{page.icon || "📋"}</div>
-          <div className="flex-1 min-w-0">
+          <div className="mt-0.5 text-2xl leading-none">
+            {page.icon || "📋"}
+          </div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
-              <h3 className="font-medium truncate">{page.name}</h3>
-              <div className="flex items-center gap-0.5 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  onClick={toggleStar}
-                  aria-label={page.starred ? "Unstar" : "Star"}
-                >
-                  <Star
-                    className={cn(
-                      "size-4",
-                      page.starred && "fill-yellow-400 text-yellow-400"
-                    )}
-                  />
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
-                    <Button variant="ghost" size="icon" className="size-7">
-                      <MoreVertical className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    onClick={(e) => e.preventDefault()}
+              <h3 className="truncate font-medium">{page.name}</h3>
+              {canManage && (
+                <div className={cn(
+                  "flex shrink-0 items-center gap-0.5 transition-opacity has-[[data-state=open]]:opacity-100",
+                  !page.starred && "opacity-0 group-hover:opacity-100"
+                )}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    onClick={toggleStar}
+                    aria-label={page.starred ? "Unstar" : "Star"}
                   >
-                    <DropdownMenuItem
-                      onSelect={(e) => {
-                        e.preventDefault()
-                        setRenameOpen(true)
-                      }}
+                    <Star
+                      className={cn(
+                        "size-4",
+                        page.starred && "fill-yellow-400 text-yellow-400"
+                      )}
+                    />
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      asChild
+                      onClick={(e) => e.preventDefault()}
                     >
-                      <Pencil className="size-4" /> Rename
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onSelect={(e) => {
-                        e.preventDefault()
-                        setDeleteOpen(true)
-                      }}
+                      <Button variant="ghost" size="icon" className="size-7">
+                        <MoreVertical className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      onClick={(e) => e.preventDefault()}
                     >
-                      <Trash2 className="size-4" /> Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                      <DropdownMenuItem
+                        onSelect={(e) => {
+                          e.preventDefault()
+                          setRenameOpen(true)
+                        }}
+                      >
+                        <Pencil className="size-4" /> Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onSelect={(e) => {
+                          e.preventDefault()
+                          setDeleteOpen(true)
+                        }}
+                      >
+                        <Trash2 className="size-4" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
             </div>
             <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
               <span>{page.recordCount} records</span>
@@ -166,8 +178,8 @@ export function PageCard({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete &quot;{page.name}&quot;?</AlertDialogTitle>
             <AlertDialogDescription>
-              This deletes the page and all {page.recordCount} of its records. This
-              cannot be undone.
+              This deletes the page and all {page.recordCount} of its records.
+              This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

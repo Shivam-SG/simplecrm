@@ -1,7 +1,10 @@
 "use client"
 
-import { Star } from "lucide-react"
+import { useState } from "react"
+import { Plus, Star } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -15,12 +18,13 @@ const STATUS_COLORS: Record<string, string> = {
   contacted: "bg-blue-500/15 text-blue-500 border border-blue-500/30",
   interested: "bg-amber-500/15 text-amber-500 border border-amber-500/30",
   not_interested: "bg-red-500/15 text-red-500 border border-red-500/30",
-  converted: "bg-green-500/15 text-green-500 border border-green-500/30",
-  junk: "bg-zinc-500/15 text-zinc-500 border border-zinc-500/30",
+  call_not_picked: "bg-orange-500/15 text-orange-500 border border-orange-500/30",
+  not_answered: "bg-rose-500/15 text-rose-500 border border-rose-500/30",
+  call_back: "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30",
 }
 
 export function statusClass(status: string): string {
-  return STATUS_COLORS[status] || "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20"
+  return STATUS_COLORS[status] || "bg-zinc-500/10 text-foreground border border-zinc-500/20"
 }
 
 export function StatusCell({
@@ -32,8 +36,19 @@ export function StatusCell({
   options: string[]
   onChange: (v: string) => void
 }) {
+  const [open, setOpen] = useState(false)
+  const [customStatus, setCustomStatus] = useState("")
+
+  function commitStatus(next: string) {
+    const cleaned = next.trim()
+    if (!cleaned) return
+    onChange(cleaned)
+    setCustomStatus("")
+    setOpen(false)
+  }
+
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
         <button
           className={cn(
@@ -44,14 +59,32 @@ export function StatusCell({
           {value || "—"}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+      <DropdownMenuContent
+        align="start"
+        className="min-w-56"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <form
+          className="flex items-center gap-2 px-1 pb-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            commitStatus(customStatus)
+          }}
+        >
+          <Input
+            value={customStatus}
+            onChange={(e) => setCustomStatus(e.target.value)}
+            placeholder="Type status..."
+            className="h-8 text-foreground"
+          />
+          <Button type="submit" size="icon" variant="ghost" className="size-8">
+            <Plus className="size-4" />
+          </Button>
+        </form>
         {options.map((opt) => (
           <DropdownMenuItem
             key={opt}
-            onSelect={(e) => {
-              e.preventDefault()
-              onChange(opt)
-            }}
+            onSelect={() => commitStatus(opt)}
           >
             <Badge variant="outline" className={cn("mr-1", statusClass(opt))}>
               {opt}

@@ -1,7 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { SESSION_COOKIE, verifySession } from "@/lib/auth"
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/auth/logout", "/api/auth/me"]
+const PUBLIC_PATHS = [
+  "/login",
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/api/auth/me",
+  "/api/auth/forgot-password",
+]
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))

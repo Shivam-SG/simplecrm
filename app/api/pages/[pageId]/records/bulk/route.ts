@@ -4,8 +4,14 @@ import mongoose from "mongoose"
 import { connectDB } from "@/lib/db"
 import { Page } from "@/lib/models/page"
 import { RecordModel } from "@/lib/models/record"
+import { StatusAuditModel } from "@/lib/models/status-audit"
 import { requireSession, UnauthorizedError } from "@/lib/session"
-import { buildMongoQuery, parseFilters, type FilterMap } from "@/lib/filter-builder"
+import { forbidden, isAdmin } from "@/lib/permissions"
+import {
+  buildMongoQuery,
+  parseFilters,
+  type FilterMap,
+} from "@/lib/filter-builder"
 import type { SchemaField } from "@/lib/schema-detector"
 
 const bodySchema = z.object({
@@ -41,15 +47,23 @@ export async function POST(
     }
 
     await connectDB()
-    const userId = new mongoose.Types.ObjectId(session.uid)
+    if (!isAdmin(session) && parsed.data.action !== "set_status") {
+      return forbidden()
+    }
     const pageObjectId = new mongoose.Types.ObjectId(pageId)
-    const page = await Page.findOne({ _id: pageObjectId, userId })
+    const pageQuery: Record<string, unknown> = { _id: pageObjectId }
+    if (isAdmin(session))
+      pageQuery.userId = new mongoose.Types.ObjectId(session.uid)
+    const page = await Page.findOne(pageQuery)
     if (!page) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    const userId = page.userId
 
     let filter: Record<string, unknown> = { pageId: pageObjectId, userId }
 
     if (parsed.data.ids && parsed.data.ids.length > 0) {
-      const ids = parsed.data.ids.filter((id) => mongoose.Types.ObjectId.isValid(id))
+      const ids = parsed.data.ids.filter((id) =>
+        mongoose.Types.ObjectId.isValid(id)
+      )
       filter._id = { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) }
     } else if (parsed.data.scope) {
       const filters = parseFilters(
@@ -61,32 +75,64 @@ export async function POST(
         page.schema as SchemaField[],
         filters,
         {
-          status: parsed.data.scope.status?.length ? parsed.data.scope.status : undefined,
+          status: parsed.data.scope.status?.length
+            ? parsed.data.scope.status
+            : undefined,
           scoreMin: parsed.data.scope.scoreMin ?? 0,
         },
         { titleField: page.titleField, query: parsed.data.scope.search }
       )
       filter = { ...built, pageId: pageObjectId, userId }
     } else {
-      return NextResponse.json({ error: "ids or scope required" }, { status: 400 })
+      return NextResponse.json(
+        { error: "ids or scope required" },
+        { status: 400 }
+      )
     }
 
-    let result: { matchedCount?: number; modifiedCount?: number; deletedCount?: number }
+    let result: {
+      matchedCount?: number
+      modifiedCount?: number
+      deletedCount?: number
+    }
 
     switch (parsed.data.action) {
       case "set_status": {
         const v = parsed.data.value
         if (typeof v !== "string") {
-          return NextResponse.json({ error: "value must be string" }, { status: 400 })
+          return NextResponse.json(
+            { error: "value must be string" },
+            { status: 400 }
+          )
         }
+        const matchedRecords = await RecordModel.find(filter, {
+          _id: 1,
+          status: 1,
+        }).lean()
         result = await RecordModel.updateMany(filter, { $set: { status: v } })
+        if (matchedRecords.length > 0) {
+          await StatusAuditModel.insertMany(
+            matchedRecords.map((record) => ({
+              pageId: page._id,
+              recordId: record._id,
+              userId,
+              username: session.username,
+              fromStatus: record.status ?? "",
+              toStatus: v,
+              action: "bulk",
+            }))
+          )
+        }
         break
       }
       case "set_score": {
         const v = parsed.data.value
         const score = typeof v === "number" ? v : Number(v)
         if (!Number.isInteger(score) || score < 0 || score > 5) {
-          return NextResponse.json({ error: "score must be 0-5" }, { status: 400 })
+          return NextResponse.json(
+            { error: "score must be 0-5" },
+            { status: 400 }
+          )
         }
         result = await RecordModel.updateMany(filter, { $set: { score } })
         break
@@ -97,7 +143,9 @@ export async function POST(
         if (!tag) {
           return NextResponse.json({ error: "tag required" }, { status: 400 })
         }
-        result = await RecordModel.updateMany(filter, { $addToSet: { tags: tag } })
+        result = await RecordModel.updateMany(filter, {
+          $addToSet: { tags: tag },
+        })
         break
       }
       case "delete": {

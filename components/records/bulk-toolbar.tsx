@@ -85,16 +85,21 @@ export function BulkToolbar({
       })
       if (!res.ok) {
         toast.error("Bulk action failed")
-        return
+        return false
       }
       const data = await res.json()
       const affected = data.modified || data.deleted || 0
+      if (action === "delete" && affected === 0) {
+        toast.error("No matching records were deleted")
+        return false
+      }
       toast.success(
         action === "delete"
           ? `Deleted ${affected} record${affected === 1 ? "" : "s"}`
           : `Updated ${affected} record${affected === 1 ? "" : "s"}`
       )
       onComplete()
+      return true
     } finally {
       setRunning(false)
     }
@@ -211,9 +216,10 @@ export function BulkToolbar({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                setDeleteOpen(false)
-                call("delete")
+              onClick={async (e) => {
+                e.preventDefault()
+                const ok = await call("delete")
+                if (ok) setDeleteOpen(false)
               }}
               className="bg-destructive text-white hover:bg-destructive/90"
             >

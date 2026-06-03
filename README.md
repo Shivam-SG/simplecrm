@@ -55,6 +55,8 @@ Create `.env` in the project root:
 MONGO_URL=mongodb+srv://<user>:<pass>@<cluster>/?appName=Cluster0
 DATABASE_NAME=simplecrm
 JWT_SECRET=<generate with: openssl rand -hex 32>
+MSG91_AUTH_KEY=<your-msg91-auth-key>
+MSG91_OTP_TEMPLATE_ID=<your-msg91-template-id>
 ```
 
 Seed an admin user:
