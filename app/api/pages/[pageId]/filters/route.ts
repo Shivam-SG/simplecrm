@@ -19,11 +19,13 @@ export async function GET(
       return NextResponse.json({ error: "Invalid id" }, { status: 400 })
     }
     await connectDB()
-    const userId = new mongoose.Types.ObjectId(session.uid)
-    const page = await Page.findOne({
+    const pageQuery: Record<string, unknown> = {
       _id: new mongoose.Types.ObjectId(pageId),
-      userId,
-    })
+    }
+    if (session.role === "admin") {
+      pageQuery.userId = new mongoose.Types.ObjectId(session.uid)
+    }
+    const page = await Page.findOne(pageQuery)
     if (!page) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
     const schema = page.schema as SchemaField[]
@@ -40,7 +42,7 @@ export async function GET(
           if (f.type === "array" || f.type === "string") {
             try {
               const distinct = await RecordModel.aggregate([
-                { $match: { pageId: page._id } },
+                { $match: { pageId: page._id, userId: page.userId } },
                 f.type === "array"
                   ? { $unwind: `$${path}` }
                   : { $project: { val: `$${path}` } },
@@ -63,7 +65,7 @@ export async function GET(
           } else if (f.type === "number") {
             try {
               const stats = await RecordModel.aggregate([
-                { $match: { pageId: page._id } },
+                { $match: { pageId: page._id, userId: page.userId } },
                 {
                   $group: {
                     _id: null,

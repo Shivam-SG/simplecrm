@@ -2,8 +2,13 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import mongoose from "mongoose"
 import { connectDB } from "@/lib/db"
-import { Page, DEFAULT_STATUS_OPTIONS } from "@/lib/models/page"
+import {
+  Page,
+  DEFAULT_STATUS_OPTIONS,
+  normalizeStatusOptions,
+} from "@/lib/models/page"
 import { requireSession, UnauthorizedError } from "@/lib/session"
+import { forbidden, isAdmin } from "@/lib/permissions"
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -17,8 +22,9 @@ export async function GET(req: Request) {
     const url = new URL(req.url)
     const onlyStarred = url.searchParams.get("starred") === "1"
 
-    const userId = new mongoose.Types.ObjectId(session.uid)
-    const match: Record<string, unknown> = { userId }
+    const match: Record<string, unknown> = {}
+    if (isAdmin(session))
+      match.userId = new mongoose.Types.ObjectId(session.uid)
     if (onlyStarred) match.starred = true
 
     // Aggregate record counts via lookup
@@ -42,7 +48,12 @@ export async function GET(req: Request) {
       { $project: { _records: 0, schema: 0 } },
     ])
 
-    return NextResponse.json({ pages })
+    const normalizedPages = pages.map((page) => ({
+      ...page,
+      statusOptions: normalizeStatusOptions(page.statusOptions),
+    }))
+
+    return NextResponse.json({ pages: normalizedPages })
   } catch (err) {
     if (err instanceof UnauthorizedError) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -54,6 +65,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const session = await requireSession()
+    if (!isAdmin(session)) return forbidden()
     const json = await req.json().catch(() => null)
     const parsed = createSchema.safeParse(json)
     if (!parsed.success) {

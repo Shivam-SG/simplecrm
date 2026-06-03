@@ -4,23 +4,26 @@ import { connectDB } from "@/lib/db"
 import { Page } from "@/lib/models/page"
 import { RecordModel } from "@/lib/models/record"
 import { requireSession, UnauthorizedError } from "@/lib/session"
+import { isAdmin } from "@/lib/permissions"
 
 export async function GET() {
   try {
     const session = await requireSession()
     await connectDB()
-    const userId = new mongoose.Types.ObjectId(session.uid)
+    const ownerMatch: Record<string, unknown> = {}
+    if (isAdmin(session))
+      ownerMatch.userId = new mongoose.Types.ObjectId(session.uid)
 
     const [pages, totalRecords, statusBreakdown, perPage] = await Promise.all([
-      Page.countDocuments({ userId }),
-      RecordModel.countDocuments({ userId }),
+      Page.countDocuments(ownerMatch),
+      RecordModel.countDocuments(ownerMatch),
       RecordModel.aggregate([
-        { $match: { userId } },
+        { $match: ownerMatch },
         { $group: { _id: "$status", count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]),
       Page.aggregate([
-        { $match: { userId } },
+        { $match: ownerMatch },
         {
           $lookup: {
             from: "records",

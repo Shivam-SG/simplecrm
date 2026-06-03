@@ -2,8 +2,11 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import mongoose from "mongoose"
 import { connectDB } from "@/lib/db"
+import { Page } from "@/lib/models/page"
 import { RecordModel } from "@/lib/models/record"
+import { StatusAuditModel } from "@/lib/models/status-audit"
 import { requireSession, UnauthorizedError } from "@/lib/session"
+import { forbidden, isAdmin } from "@/lib/permissions"
 
 const patchSchema = z.object({
   status: z.string().min(1).optional(),
@@ -39,12 +42,29 @@ export async function PATCH(
     }
 
     await connectDB()
-    const userId = new mongoose.Types.ObjectId(session.uid)
+    if (!isAdmin(session)) {
+      const keys = Object.keys(parsed.data)
+      if (keys.length !== 1 || parsed.data.status === undefined) {
+        return forbidden()
+      }
+    }
+
+    const pageQuery: Record<string, unknown> = {
+      _id: new mongoose.Types.ObjectId(pageId),
+    }
+    if (isAdmin(session))
+      pageQuery.userId = new mongoose.Types.ObjectId(session.uid)
+    const page = await Page.findOne(pageQuery)
+    if (!page) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+    const userId = page.userId
     const filter = {
       _id: new mongoose.Types.ObjectId(recordId),
       pageId: new mongoose.Types.ObjectId(pageId),
       userId,
     }
+
+    const previousRecord = await RecordModel.findOne(filter, { status: 1 }).lean()
 
     const update: Record<string, unknown> = {}
     const set: Record<string, unknown> = {}
@@ -65,8 +85,27 @@ export async function PATCH(
       return NextResponse.json({ error: "Nothing to update" }, { status: 400 })
     }
 
-    const record = await RecordModel.findOneAndUpdate(filter, update, { new: true })
-    if (!record) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    const record = await RecordModel.findOneAndUpdate(filter, update, {
+      new: true,
+    })
+    if (!record)
+      return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+    if (
+      parsed.data.status !== undefined &&
+      previousRecord &&
+      previousRecord.status !== parsed.data.status
+    ) {
+      await StatusAuditModel.create({
+        pageId: page._id,
+        recordId: record._id,
+        userId: new mongoose.Types.ObjectId(session.uid),
+        username: session.username,
+        fromStatus: previousRecord.status ?? "",
+        toStatus: parsed.data.status,
+        action: "single",
+      })
+    }
 
     return NextResponse.json({ record })
   } catch (err) {
@@ -83,6 +122,7 @@ export async function DELETE(
 ) {
   try {
     const session = await requireSession()
+    if (!isAdmin(session)) return forbidden()
     const { pageId, recordId } = await ctx.params
     if (
       !mongoose.Types.ObjectId.isValid(pageId) ||

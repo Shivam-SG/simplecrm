@@ -9,66 +9,97 @@ import { CreatePageDialog } from "@/components/pages/create-dialog"
 import { PageCard } from "@/components/pages/page-card"
 import { usePages } from "@/hooks/use-pages"
 import { useRouter } from "next/navigation"
+import useSWR from "swr"
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function PagesPage() {
   const { data, isLoading, mutate } = usePages()
+  const { data: me } = useSWR<{ user: { role: "admin" | "user" } }>(
+    "/api/auth/me",
+    fetcher
+  )
   const [createOpen, setCreateOpen] = useState(false)
   const router = useRouter()
   const pages = data?.pages ?? []
+  const canManage = me?.user?.role === "admin"
 
   return (
     <AppShell title="Pages">
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {isLoading ? "Loading..." : `${pages.length} ${pages.length === 1 ? "page" : "pages"}`}
+          {isLoading
+            ? "Loading..."
+            : `${pages.length} ${pages.length === 1 ? "page" : "pages"}`}
         </p>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="size-4" /> Create page
-        </Button>
+        {canManage && (
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="size-4" /> Create page
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-24 rounded-lg" />
           ))}
         </div>
       ) : pages.length === 0 ? (
-        <EmptyState onCreate={() => setCreateOpen(true)} />
+        <EmptyState
+          canManage={canManage}
+          onCreate={() => setCreateOpen(true)}
+        />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {pages.map((p) => (
-            <PageCard key={p._id} page={p} onMutate={mutate} />
+            <PageCard
+              key={p._id}
+              page={p}
+              onMutate={mutate}
+              canManage={canManage}
+            />
           ))}
         </div>
       )}
 
-      <CreatePageDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onCreated={(id) => {
-          mutate()
-          router.push(`/pages/${id}`)
-        }}
-      />
+      {canManage && (
+        <CreatePageDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          onCreated={(id) => {
+            mutate()
+            router.push(`/pages/${id}`)
+          }}
+        />
+      )}
     </AppShell>
   )
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({
+  canManage,
+  onCreate,
+}: {
+  canManage: boolean
+  onCreate: () => void
+}) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed rounded-lg">
-      <div className="size-12 rounded-full bg-accent flex items-center justify-center mb-4">
+    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-20 text-center">
+      <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-accent">
         <Layers className="size-6 text-muted-foreground" />
       </div>
       <h2 className="font-medium">No pages yet</h2>
-      <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-        Create a page to start working with a dataset. Each page gets its own schema,
-        filters, and statuses.
+      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+        {canManage
+          ? "Create a page to start working with a dataset. Each page gets its own schema, filters, and statuses."
+          : "No pages are available yet."}
       </p>
-      <Button className="mt-4" onClick={onCreate}>
-        <Plus className="size-4" /> Create your first page
-      </Button>
+      {canManage && (
+        <Button className="mt-4" onClick={onCreate}>
+          <Plus className="size-4" /> Create your first page
+        </Button>
+      )}
     </div>
   )
 }

@@ -32,6 +32,7 @@ export function DataTable({
   onSelectionChange,
   onRowClick,
   onUpdate,
+  canManage,
 }: {
   schema: SchemaField[]
   records: RecordRow[]
@@ -45,6 +46,7 @@ export function DataTable({
     id: string,
     update: Partial<Pick<RecordRow, "status" | "score" | "starred">>
   ) => Promise<void>
+  canManage: boolean
 }) {
   const visible = schema.filter((f) => f.visible)
 
@@ -72,33 +74,39 @@ export function DataTable({
 
   function SortIcon({ k }: { k: string }) {
     if (!sort || sort.key !== k)
-      return <ChevronsUpDown className="size-3 inline ml-1 opacity-40" />
+      return <ChevronsUpDown className="ml-1 inline size-3 opacity-40" />
     return sort.dir === "asc" ? (
-      <ChevronUp className="size-3 inline ml-1" />
+      <ChevronUp className="ml-1 inline size-3" />
     ) : (
-      <ChevronDown className="size-3 inline ml-1" />
+      <ChevronDown className="ml-1 inline size-3" />
     )
   }
 
   return (
-    <div className="border rounded-md overflow-auto">
-      <Table>
+    <div className="max-w-full overflow-x-auto rounded-md border">
+      <Table className="min-w-max">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-8">
-              <Checkbox
-                checked={
-                  allOnPageSelected ? true : someOnPageSelected ? "indeterminate" : false
-                }
-                onCheckedChange={(v) => toggleAllOnPage(!!v)}
-                aria-label="Select all on page"
-              />
-            </TableHead>
+            {canManage && (
+              <TableHead className="w-8">
+                <Checkbox
+                  checked={
+                    allOnPageSelected
+                      ? true
+                      : someOnPageSelected
+                        ? "indeterminate"
+                        : false
+                  }
+                  onCheckedChange={(v) => toggleAllOnPage(!!v)}
+                  aria-label="Select all on page"
+                />
+              </TableHead>
+            )}
             {visible.map((f) => (
               <TableHead
                 key={f.key}
                 className={cn(
-                  "cursor-pointer select-none whitespace-nowrap",
+                  "cursor-pointer whitespace-nowrap select-none",
                   f.type === "number" && "text-right"
                 )}
                 onClick={() => toggleSort(f.key)}
@@ -107,34 +115,38 @@ export function DataTable({
                 <SortIcon k={f.key} />
               </TableHead>
             ))}
+            {canManage && (
+              <TableHead
+                className="w-8 cursor-pointer select-none"
+                onClick={() => toggleSort("__system__starred")}
+              >
+                <span className="sr-only">Starred</span>
+                <SortIcon k="__system__starred" />
+              </TableHead>
+            )}
             <TableHead
-              className="cursor-pointer select-none w-8"
-              onClick={() => toggleSort("__system__starred")}
-            >
-              <span className="sr-only">Starred</span>
-              <SortIcon k="__system__starred" />
-            </TableHead>
-            <TableHead
-              className="cursor-pointer select-none whitespace-nowrap"
+              className="cursor-pointer whitespace-nowrap select-none"
               onClick={() => toggleSort("__system__status")}
             >
               Status
               <SortIcon k="__system__status" />
             </TableHead>
-            <TableHead
-              className="cursor-pointer select-none whitespace-nowrap"
-              onClick={() => toggleSort("__system__score")}
-            >
-              Score
-              <SortIcon k="__system__score" />
-            </TableHead>
+            {canManage && (
+              <TableHead
+                className="cursor-pointer whitespace-nowrap select-none"
+                onClick={() => toggleSort("__system__score")}
+              >
+                Score
+                <SortIcon k="__system__score" />
+              </TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
           {records.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={visible.length + 4}
+                colSpan={visible.length + (canManage ? 4 : 1)}
                 className="h-32 text-center text-sm text-muted-foreground"
               >
                 No records match.
@@ -150,18 +162,20 @@ export function DataTable({
                   selectedIds.has(r._id) && "bg-accent/40"
                 )}
               >
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <Checkbox
-                    checked={selectedIds.has(r._id)}
-                    onCheckedChange={(v) => {
-                      const next = new Set(selectedIds)
-                      if (v) next.add(r._id)
-                      else next.delete(r._id)
-                      onSelectionChange(next)
-                    }}
-                    aria-label="Select record"
-                  />
-                </TableCell>
+                {canManage && (
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedIds.has(r._id)}
+                      onCheckedChange={(v) => {
+                        const next = new Set(selectedIds)
+                        if (v) next.add(r._id)
+                        else next.delete(r._id)
+                        onSelectionChange(next)
+                      }}
+                      aria-label="Select record"
+                    />
+                  </TableCell>
+                )}
                 {visible.map((f) => (
                   <TableCell
                     key={f.key}
@@ -177,12 +191,14 @@ export function DataTable({
                     />
                   </TableCell>
                 ))}
-                <TableCell>
-                  <StarredCell
-                    value={r.starred}
-                    onChange={(v) => onUpdate(r._id, { starred: v })}
-                  />
-                </TableCell>
+                {canManage && (
+                  <TableCell>
+                    <StarredCell
+                      value={r.starred}
+                      onChange={(v) => onUpdate(r._id, { starred: v })}
+                    />
+                  </TableCell>
+                )}
                 <TableCell>
                   <StatusCell
                     value={r.status}
@@ -190,12 +206,14 @@ export function DataTable({
                     onChange={(v) => onUpdate(r._id, { status: v })}
                   />
                 </TableCell>
-                <TableCell>
-                  <ScoreCell
-                    value={r.score}
-                    onChange={(v) => onUpdate(r._id, { score: v })}
-                  />
-                </TableCell>
+                {canManage && (
+                  <TableCell>
+                    <ScoreCell
+                      value={r.score}
+                      onChange={(v) => onUpdate(r._id, { score: v })}
+                    />
+                  </TableCell>
+                )}
               </TableRow>
             ))
           )}

@@ -4,6 +4,7 @@ import mongoose from "mongoose"
 import { connectDB } from "@/lib/db"
 import { Page } from "@/lib/models/page"
 import { requireSession, UnauthorizedError } from "@/lib/session"
+import { forbidden, isAdmin } from "@/lib/permissions"
 import { detectSchema, flattenForStorage } from "@/lib/schema-detector"
 
 const bodySchema = z.object({
@@ -16,6 +17,7 @@ export async function POST(
 ) {
   try {
     const session = await requireSession()
+    if (!isAdmin(session)) return forbidden()
     const { pageId } = await ctx.params
     if (!mongoose.Types.ObjectId.isValid(pageId)) {
       return NextResponse.json({ error: "Invalid id" }, { status: 400 })
@@ -35,7 +37,9 @@ export async function POST(
     if (!page) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
     const detection = detectSchema(parsed.data.records)
-    const preview = parsed.data.records.slice(0, 5).map((r) => flattenForStorage(r))
+    const preview = parsed.data.records
+      .slice(0, 5)
+      .map((r) => flattenForStorage(r))
 
     return NextResponse.json({
       detected: detection,

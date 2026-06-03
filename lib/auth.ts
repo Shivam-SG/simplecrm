@@ -12,6 +12,8 @@ export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7 // 7 days
 export type SessionPayload = {
   uid: string
   username: string
+  mobile?: string
+  role: "admin" | "user"
 }
 
 export async function signSession(payload: SessionPayload): Promise<string> {
@@ -22,11 +24,21 @@ export async function signSession(payload: SessionPayload): Promise<string> {
     .sign(secretKey)
 }
 
-export async function verifySession(token: string): Promise<SessionPayload | null> {
+export async function verifySession(
+  token: string
+): Promise<SessionPayload | null> {
   try {
     const { payload } = await jwtVerify(token, secretKey, { algorithms: [ALG] })
-    if (typeof payload.uid === "string" && typeof payload.username === "string") {
-      return { uid: payload.uid, username: payload.username }
+    if (
+      typeof payload.uid === "string" &&
+      typeof payload.username === "string"
+    ) {
+      return {
+        uid: payload.uid,
+        username: payload.username,
+        mobile: typeof payload.mobile === "string" ? payload.mobile : undefined,
+        role: payload.role === "user" ? "user" : "admin",
+      }
     }
     return null
   } catch {

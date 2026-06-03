@@ -42,16 +42,12 @@ export function Header({ title }: { title: string }) {
   }
 
   return (
-    <header className="h-14 border-b flex items-center gap-2 px-4 md:px-6">
+    <header className="flex h-14 min-w-0 items-center gap-2 border-b px-4 md:px-6">
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-5" />
-      <img
-        src="/simple-crm-icon.svg"
-        alt=""
-        className="size-5 shrink-0"
-      />
-      <h1 className="text-base font-semibold truncate">{title}</h1>
-      <div className="ml-auto flex items-center gap-2">
+      <img src="/simple-crm-icon.svg" alt="" className="size-5 shrink-0" />
+      <h1 className="min-w-0 truncate text-base font-semibold">{title}</h1>
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         <Button
           variant="outline"
           size="icon"
