@@ -187,7 +187,7 @@ function PageItem({
 
   return (
     <SidebarMenuItem>
-      <div className="flex items-center gap-1">
+      <div className="group/page flex items-center gap-1">
         <SidebarMenuButton asChild isActive={active} tooltip={page.name}>
           <Link href={href}>
             <span className="text-base leading-none">

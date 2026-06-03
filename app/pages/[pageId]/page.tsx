@@ -163,13 +163,17 @@ function PageHeader({
   return (
     <div className="mb-6 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <input
-          aria-label="Page icon"
-          value={icon}
-          onChange={(e) => commitIcon(e.target.value)}
-          className="w-12 rounded-md bg-transparent text-center text-3xl outline-none hover:bg-accent focus:bg-accent"
-        />
-        {editingName ? (
+        {canManage ? (
+          <input
+            aria-label="Page icon"
+            value={icon}
+            onChange={(e) => commitIcon(e.target.value)}
+            className="w-12 rounded-md bg-transparent text-center text-3xl outline-none hover:bg-accent focus:bg-accent"
+          />
+        ) : (
+          <span className="w-12 text-center text-3xl">{icon}</span>
+        )}
+        {canManage && editingName ? (
           <input
             ref={inputRef}
             value={name}
@@ -186,8 +190,11 @@ function PageHeader({
           />
         ) : (
           <h1
-            className="-mx-1 cursor-text truncate rounded px-1 text-2xl font-semibold hover:bg-accent/50"
-            onClick={() => setEditingName(true)}
+            className={cn(
+              "truncate rounded px-1 text-2xl font-semibold",
+              canManage && "-mx-1 cursor-text hover:bg-accent/50"
+            )}
+            onClick={() => canManage && setEditingName(true)}
           >
             {page.name}
           </h1>
@@ -209,7 +216,7 @@ function PageHeader({
         )}
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-        {(page.schema?.length ?? 0) > 0 && (
+        {canManage && (page.schema?.length ?? 0) > 0 && (
           <>
             <PageSettingsButton page={page} onSaved={onMutate} />
             <ColumnSettingsButton page={page} onSaved={onMutate} />

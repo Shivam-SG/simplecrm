@@ -98,7 +98,10 @@ export function PageCard({
             <div className="flex items-start justify-between gap-2">
               <h3 className="truncate font-medium">{page.name}</h3>
               {canManage && (
-                <div className="flex shrink-0 items-center gap-0.5">
+                <div className={cn(
+                  "flex shrink-0 items-center gap-0.5 transition-opacity has-[[data-state=open]]:opacity-100",
+                  !page.starred && "opacity-0 group-hover:opacity-100"
+                )}>
                   <Button
                     variant="ghost"
                     size="icon"
